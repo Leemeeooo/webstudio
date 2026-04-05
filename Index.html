@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ultimate Web Studio Pro</title>
+  <style>
+    :root {
+      --bg-color: #f3f4f6;
+      --device-color: #1a1a1a;
+      --glass-bg: rgba(255, 255, 255, 0.75);
+      --glass-border: rgba(255, 255, 255, 0.3);
+    }
+
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    body {
+      margin: 0; background: var(--bg-color); height: 100vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: background 0.4s ease;
+    }
+
+    body.animated-bg {
+      background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+      background-size: 400% 400%; animation: gradientShift 15s ease infinite;
+    }
+
+    @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+    .toast {
+      position: fixed; top: 20px; left: 50%; transform: translate(-50%, -20px);
+      background: rgba(0,0,0,0.8); color: white; padding: 10px 25px;
+      border-radius: 30px; font-size: 13px; font-weight: 500; opacity: 0;
+      transition: all 0.4s ease; pointer-events: none; z-index: 2000;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* --- Control Dock --- */
+    .controls-wrapper {
+      position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
+    }
+    .controls-wrapper.hidden { transform: translate(-50%, 150px); opacity: 0; pointer-events: none; }
+
+    .controls {
+      background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border); padding: 12px 20px; border-radius: 16px;
+      display: flex; gap: 15px; align-items: center; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .control-group { display: flex; align-items: center; gap: 10px; padding-right: 15px; border-right: 1px solid rgba(0,0,0,0.1); }
+    .control-group:last-child { border-right: none; padding-right: 0; }
+
+    input[type="text"] { width: 180px; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.15); border-radius: 6px; font-size: 13px; outline: none; }
+    select, button { padding: 8px 14px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.15); font-size: 13px; font-weight: 600; cursor: pointer; outline: none; background: #fff; transition: all 0.2s; }
+    button:hover { background: #f0f0f0; }
+
+    input[type="color"] { -webkit-appearance: none; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0; background: none; }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type="color"]::-webkit-color-swatch { border: 2px solid rgba(255,255,255,0.8); border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+    input[type="file"] { display: none; }
+    .upload-btn { background: #e2e8f0; border: 1px dashed #94a3b8; color: #475569; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+    .upload-btn:hover { background: #cbd5e1; border-style: solid; }
+
+    button.primary { background: #000; color: #fff; border: none; } button.primary:hover { background: #333; }
+    button.capture { background: #34a853; color: #fff; border: none; } button.capture:hover { background: #2d8f47; }
+    button.record { background: #ff3b30; color: #fff; border: none; } button.record:hover { background: #d70015; }
+    button.record.active { background: #000; animation: pulseRecord 2s infinite; }
+    button.toggle-on { background: #007aff; color: #fff; border-color: #007aff; }
+
+    @keyframes pulseRecord { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.6); } 70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+
+    /* --- Stage & Overlays --- */
+    .stage { flex: 1; display: flex; justify-content: center; align-items: center; perspective: 1500px; position: relative; }
+    
+    .watermark-container { position: absolute; bottom: 40px; right: 40px; max-width: 150px; max-height: 100px; z-index: 500; opacity: 0.8; pointer-events: none; transition: opacity 0.3s; }
+    .watermark-container img { width: 100%; height: auto; display: none; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2)); }
+
+    /* Floating Facecam Bubble */
+    .facecam-bubble {
+      position: absolute; bottom: 40px; left: 40px; width: 180px; height: 180px;
+      border-radius: 50%; object-fit: cover; z-index: 500; display: none;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.3); border: 4px solid var(--glass-bg);
+      backdrop-filter: blur(5px); transform: scaleX(-1); /* Mirrors the camera */
+    }
+
+    /* Devices */
+    .device-wrapper { transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1); position: relative; background: var(--device-color); box-shadow: 0 50px 100px -20px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.2); display: flex; justify-content: center; align-items: center; }
+    .iframe-container { width: 100%; height: 100%; background: #000; overflow: hidden; position: relative; }
+    iframe { width: 100%; height: 100%; border: none; background: #fff; }
+
+    .device-laptop { width: 900px; height: 560px; border-radius: 16px 16px 0 0; padding: 12px 12px 24px 12px; } .device-laptop .iframe-container { border-radius: 6px 6px 0 0; } .device-laptop::after { content: ''; position: absolute; bottom: -18px; left: -2%; width: 104%; height: 18px; background: linear-gradient(to bottom, var(--device-color) 0%, #111 100%); border-radius: 0 0 24px 24px; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+    .device-monitor { width: 1050px; height: 590px; border-radius: 12px; padding: 14px 14px 24px 14px; } .device-monitor .iframe-container { border-radius: 4px; } .device-monitor::after { content: ''; position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%); width: 180px; height: 60px; background: linear-gradient(to right, #111, var(--device-color), #111); clip-path: polygon(25% 0, 75% 0, 100% 100%, 0% 100%); z-index: -1; } .device-monitor::before { content: ''; position: absolute; bottom: -65px; left: 50%; transform: translateX(-50%); width: 250px; height: 5px; background: #333; border-radius: 5px; }
+    .device-iphone { width: 380px; height: 800px; border-radius: 50px; padding: 14px; } .device-iphone .iframe-container { border-radius: 36px; } .device-iphone::before { content: ''; position: absolute; top: 24px; left: 50%; transform: translateX(-50%); width: 120px; height: 30px; background: var(--device-color); border-radius: 20px; z-index: 2; }
+    .device-android { width: 390px; height: 820px; border-radius: 24px; padding: 10px; } .device-android .iframe-container { border-radius: 16px; } .device-android::before { content: ''; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background: #000; border-radius: 50%; z-index: 2; box-shadow: inset 0 0 2px rgba(255,255,255,0.5); }
+    .landscape.device-iphone { width: 800px; height: 380px; padding: 14px; } .landscape.device-iphone::before { top: 50%; left: 24px; transform: translateY(-50%); width: 30px; height: 120px; } .landscape.device-android { width: 820px; height: 390px; padding: 10px; } .landscape.device-android::before { top: 50%; left: 20px; transform: translateY(-50%); }
+    .device-watch { width: 220px; height: 265px; border-radius: 45px; padding: 12px; } .device-watch .iframe-container { border-radius: 34px; } .device-watch::before, .device-watch::after { content: ''; position: absolute; left: 50%; transform: translateX(-50%); width: 120px; height: 60px; background: #333; z-index: -1; } .device-watch::before { top: -40px; border-radius: 20px 20px 0 0; } .device-watch::after { bottom: -40px; border-radius: 0 0 20px 20px; }
+    .device-tv { width: 1100px; height: 620px; border-radius: 8px; padding: 8px; border-bottom: 25px solid var(--device-color); } .device-tv .iframe-container { border-radius: 4px; } .device-tv::after { content: ''; position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); width: 400px; height: 15px; background: var(--device-color); border-radius: 0 0 10px 10px; }
+    .device-fullscreen { width: 100vw; height: 100vh; border-radius: 0; padding: 0; box-shadow: none; background: transparent; } .device-fullscreen .iframe-container { border-radius: 0; }
+
+  </style>
+</head>
+<body>
+
+  <div class="toast" id="toast">Press ESC to reveal controls</div>
+
+  <div class="stage">
+    
+    <video id="facecamVideo" class="facecam-bubble" autoplay muted playsinline></video>
+
+    <div id="device" class="device-wrapper device-laptop">
+      <div class="iframe-container">
+        <iframe id="frame" src="about:blank" title="App Preview"></iframe>
+      </div>
+    </div>
+    
+    <div class="watermark-container">
+      <img id="watermarkImg" src="" alt="Brand Logo">
+    </div>
+  </div>
+
+  <div class="controls-wrapper" id="dock">
+    <div class="controls">
+      
+      <div class="control-group">
+        <input type="text" id="appUrl" placeholder="Enter App URL...">
+        <button class="primary" onclick="loadApp()">Load</button>
+        <button onclick="reloadApp()" title="Reload Frame">↻</button>
+      </div>
+
+      <div class="control-group">
+        <select id="deviceSelect" onchange="updateDevice()">
+          <option value="device-laptop">Laptop</option>
+          <option value="device-monitor">Monitor</option>
+          <option value="device-iphone">iPhone</option>
+          <option value="device-android">Android</option>
+          <option value="device-watch">Smartwatch</option>
+          <option value="device-tv">Television</option>
+          <option value="device-fullscreen">Full Screen</option>
+        </select>
+        <button onclick="toggleOrientation()">Rotate</button>
+        <input type="color" id="deviceColor" value="#1a1a1a" oninput="updateColors()" title="Chassis Color">
+      </div>
+
+      <div class="control-group">
+        <select id="bgType" onchange="updateColors()">
+          <option value="solid">Solid Background</option>
+          <option value="animated">Animated Aurora</option>
+        </select>
+        <input type="color" id="bgColor" value="#f3f4f6" oninput="updateColors()" title="Background Color">
+      </div>
+
+      <div class="control-group">
+        <label for="logoUpload" class="upload-btn" style="cursor:pointer;">+ Brand</label>
+        <input type="file" id="logoUpload" accept="image/*" onchange="loadWatermark(event)">
+      </div>
+
+      <div class="control-group">
+        <button id="camBtn" onclick="toggleCamera()">Cam: OFF</button>
+        <button id="micBtn" onclick="toggleMic()">Mic: OFF</button>
+        <button class="capture" onclick="takePicture()">Picture</button>
+        <button class="record" id="recordBtn" onclick="toggleRecording()">Record</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let isLandscape = false;
+    let micEnabled = false;
+    let camStream = null;
+
+  
+    function loadApp() { const url = document.getElementById('appUrl').value; if (url) document.getElementById('frame').src = url; }
+    function reloadApp() { const iframe = document.getElementById('frame'); iframe.src = iframe.src; showToast("App Reloaded"); }
+    function updateDevice() { const deviceClass = document.getElementById('deviceSelect').value; const device = document.getElementById('device'); device.className = `device-wrapper ${deviceClass}`; if (isLandscape) device.classList.add('landscape'); }
+    function toggleOrientation() { isLandscape = !isLandscape; const device = document.getElementById('device'); isLandscape ? device.classList.add('landscape') : device.classList.remove('landscape'); }
+    
+    function updateColors() {
+      const deviceColor = document.getElementById('deviceColor').value;
+      const bgColor = document.getElementById('bgColor').value;
+      const bgType = document.getElementById('bgType').value;
+      document.documentElement.style.setProperty('--device-color', deviceColor);
+      if (bgType === 'animated') { document.body.classList.add('animated-bg'); document.getElementById('bgColor').style.display = 'none'; } 
+      else { document.body.classList.remove('animated-bg'); document.documentElement.style.setProperty('--bg-color', bgColor); document.getElementById('bgColor').style.display = 'inline-block'; }
+    }
+
+    function loadWatermark(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) { const img = document.getElementById('watermarkImg'); img.src = e.target.result; img.style.display = 'block'; showToast("Brand Logo Added"); };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    async function toggleCamera() {
+      const btn = document.getElementById('camBtn');
+      const video = document.getElementById('facecamVideo');
+      
+      if (!camStream) {
+        try {
+          camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 300, height: 300 } });
+          video.srcObject = camStream;
+          video.style.display = 'block';
+          btn.innerText = "Cam: ON";
+          btn.classList.add('toggle-on');
+        } catch (e) {
+          console.error(e);
+          showToast("Camera access denied.");
+        }
+      } else {
+        camStream.getTracks().forEach(t => t.stop());
+        camStream = null;
+        video.srcObject = null;
+        video.style.display = 'none';
+        btn.innerText = "Cam: OFF";
+        btn.classList.remove('toggle-on');
+      }
+    }
+
+    function toggleMic() {
+      micEnabled = !micEnabled;
+      const btn = document.getElementById('micBtn');
+      if (micEnabled) { btn.innerText = "Mic: ON"; btn.classList.add('toggle-on'); } 
+      else { btn.innerText = "Mic: OFF"; btn.classList.remove('toggle-on'); }
+    }
+
+    function showToast(message) { const toast = document.getElementById('toast'); toast.innerText = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); }
+    document.addEventListener('keydown', (e) => { if (e.key === "Escape") document.getElementById('dock').classList.remove('hidden'); });
+
+    async function takePicture() {
+      document.getElementById('dock').classList.add('hidden');
+      try {
+        await new Promise(r => setTimeout(r, 300));
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: { preferCurrentTab: true } });
+        const video = document.createElement('video'); video.srcObject = stream; await video.play();
+        const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = 'Studio_Capture.png'; a.click();
+        stream.getTracks().forEach(track => track.stop());
+        showToast("Picture saved! Press ESC for controls.");
+      } catch (err) { showToast("Capture cancelled."); document.getElementById('dock').classList.remove('hidden'); }
+    }
+
+    let mediaRecorder; let chunks = []; let isRecording = false;
+    async function toggleRecording() {
+      const btn = document.getElementById('recordBtn');
+      if (!isRecording) {
+        try {
+          const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "browser", frameRate: 60 }, audio: true });
+          const tracks = [...displayStream.getTracks()];
+          
+          if (micEnabled) {
+            try { const micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); tracks.push(...micStream.getAudioTracks()); } 
+            catch (micErr) { showToast("Warning: Mic access denied."); }
+          }
+          
+          const combinedStream = new MediaStream(tracks);
+          mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm; codecs=vp9' });
+          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+          
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'Studio_Video.webm'; a.click(); window.URL.revokeObjectURL(url);
+            chunks = []; btn.innerText = "Record"; btn.classList.remove('active'); isRecording = false;
+            combinedStream.getTracks().forEach(track => track.stop()); 
+          };
+          
+          mediaRecorder.start(); isRecording = true; btn.innerText = "Stop"; btn.classList.add('active');
+          document.getElementById('dock').classList.add('hidden'); showToast("Recording started. Press ESC for controls.");
+        } catch (err) { showToast("Recording permission denied."); }
+      } else { mediaRecorder.stop(); }
+    }
+
+  
+    updateColors();
+  </script>
+</body>
+</html>
